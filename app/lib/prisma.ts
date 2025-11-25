@@ -21,6 +21,13 @@ declare const globalThis: {
   prismaGlobal: ReturnType<typeof prismaClientSingleton>;
 } & typeof global;
 
+// Clear the global cache if product model is not available (for development)
+if (process.env.NODE_ENV !== "production") {
+  if (globalThis.prismaGlobal && !('product' in globalThis.prismaGlobal)) {
+    globalThis.prismaGlobal = undefined as any;
+  }
+}
+
 const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 
 if (process.env.NODE_ENV !== "production") {

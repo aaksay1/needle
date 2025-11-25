@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
+import prisma from "@/app/lib/prisma";
 
 export async function POST(request: NextRequest) {
     try {
@@ -38,27 +39,51 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // TODO: Save to database
-        // For now, we'll just return success
-        // You can integrate with your database here (e.g., Prisma, MongoDB, etc.)
-        
-        const requestData = {
-            productName: productName.trim(),
-            description: description.trim(),
-            price: price,
-            userId: user.id,
-            userEmail: user.email,
-            createdAt: new Date().toISOString(),
-        };
+        // Ensure user exists in database (upsert)
+        await prisma.user.upsert({
+            where: { id: user.id },
+            update: {},
+            create: {
+                id: user.id,
+                email: user.email ?? "",
+                firstName: user.given_name ?? "",
+                lastName: user.family_name ?? "",
+                profileImage: user.picture ?? `https://avatar.vercel.sh/${user.given_name}`,
+            },
+        });
 
-        // Example: Save to database
-        // await db.productRequests.create({ data: requestData });
+        // Convert price from dollars to cents (since schema expects Int)
+        const priceInCents = Math.round(price * 100);
+
+        // Verify product model is available
+        if (!prisma.product) {
+            console.error("Prisma product model is not available. Please restart the dev server after running 'npx prisma generate'");
+            return NextResponse.json(
+                { error: "Database configuration error. Please restart the server." },
+                { status: 500 }
+            );
+        }
+
+        // Save product to database
+        const product = await prisma.product.create({
+            data: {
+                name: productName.trim(),
+                price: priceInCents,
+                description: description.trim(),
+                userId: user.id,
+            },
+        });
 
         return NextResponse.json(
             {
                 success: true,
                 message: "Request posted successfully",
-                data: requestData,
+                data: {
+                    id: product.id,
+                    name: product.name,
+                    price: product.price,
+                    createdAt: product.createdAt,
+                },
             },
             { status: 201 }
         );
