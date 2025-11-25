@@ -1,6 +1,7 @@
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 import { redirect } from "next/navigation";
 import prisma from "@/app/lib/prisma";
+import { ProductCard } from "./ProductCard";
 
 export default async function MyRequestsPage() {
     const { getUser } = getKindeServerSession();
@@ -79,46 +80,9 @@ export default async function MyRequestsPage() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {products.map((product) => {
-                            // Description is stored as string
-                            const descriptionText = product.description || "";
-
-                            // Convert price from cents to dollars
-                            const priceInDollars = (product.price / 100).toFixed(2);
-
-                            return (
-                                <div
-                                    key={product.id}
-                                    className="bg-white rounded-xl shadow-lg border border-indigo-100 p-6 hover:shadow-xl transition-all duration-200"
-                                >
-                                    <div className="flex justify-between items-start mb-4">
-                                        <h3 className="text-xl font-bold text-gray-900 flex-1">
-                                            {product.name}
-                                        </h3>
-                                        <span className="ml-2 px-3 py-1 bg-indigo-100 text-indigo-700 text-sm font-semibold rounded-full">
-                                            ${priceInDollars}
-                                        </span>
-                                    </div>
-
-                                    <p className="text-gray-600 mb-4 line-clamp-3">
-                                        {String(descriptionText)}
-                                    </p>
-
-                                    <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                                        <span className="text-sm text-gray-500">
-                                            {new Date(product.createdAt).toLocaleDateString("en-US", {
-                                                month: "short",
-                                                day: "numeric",
-                                                year: "numeric",
-                                            })}
-                                        </span>
-                                        <span className="text-xs text-indigo-600 font-medium">
-                                            Active
-                                        </span>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                        {products.map((product) => (
+                            <ProductCard key={product.id} product={product} />
+                        ))}
                     </div>
                 )}
             </div>
