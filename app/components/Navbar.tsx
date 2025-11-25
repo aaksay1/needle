@@ -1,11 +1,14 @@
-"use client";
-
 import Link from "next/link";
-import { useState } from "react";
 import { NavbarLinks, navbarLinks } from "./NavbarLinks";
+import { LoginLink, RegisterLink } from "@kinde-oss/kinde-auth-nextjs/components";
+import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
+import { MobileMenu } from "./MobileMenu";
+import { UserNav } from "./UserNav";
 
-export function Navbar() {
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+export async function Navbar() {
+    const {getUser} = getKindeServerSession()
+
+    const user = await getUser()
 
     return (
         <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-indigo-100 shadow-sm">
@@ -24,80 +27,42 @@ export function Navbar() {
                             </div>
                         </div>
                     </Link>
-                    <button
-                        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                        className="md:hidden p-2 rounded-lg text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-                        aria-label="Toggle menu"
-                    >
-                        <svg
-                            className="h-6 w-6"
-                            fill="none"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            {mobileMenuOpen ? (
-                                <path d="M6 18L18 6M6 6l12 12" />
-                            ) : (
-                                <path d="M4 6h16M4 12h16M4 18h16" />
-                            )}
-                        </svg>
-                    </button>
                 </div>
-                <NavbarLinks />
+                <NavbarLinks user={user} />
                 
                 {/* Auth Buttons - Desktop */}
                 <div className="hidden md:flex items-center justify-end gap-3 col-span-3">
-                    <Link
-                        href="/login"
-                        className="px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
-                    >
-                        Log in
-                    </Link>
-                    <Link
-                        href="/register"
-                        className="px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg hover:from-indigo-700 hover:to-purple-700 shadow-md hover:shadow-lg transition-all duration-200"
-                    >
-                        Sign up
-                    </Link>
-                </div>
-            </div>
-            
-            {/* Mobile Menu */}
-            {mobileMenuOpen && (
-                <div className="md:hidden border-t border-indigo-100 bg-white/95 backdrop-blur-lg">
-                    <div className="px-4 py-4 space-y-2">
-                        {navbarLinks.map((link) => (
-                            <Link
-                                key={link.id}
-                                href={link.href}
-                                onClick={() => setMobileMenuOpen(false)}
-                                className="block py-3 px-4 text-sm font-medium text-gray-700 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                    {user ? (
+                        <UserNav 
+                            email={user.email as string} 
+                            name={user.given_name as string}
+                            userImage ={
+                                user.picture ?? `https://avatar.vercel.sh/${user.given_name}`
+                            }
+                        />
+                    ): (
+                        <div className="flex items-center gap-x-2">
+                            <LoginLink 
+                            className="px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
                             >
-                                {link.name}
-                            </Link>
-                        ))}
-                        <div className="pt-4 border-t border-indigo-100 space-y-2">
-                            <Link
-                                href="/login"
-                                onClick={() => setMobileMenuOpen(false)}
-                                className="block py-3 px-4 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors text-center"
-                            >
-                                Log in
-                            </Link>
-                            <Link
-                                href="/register"
-                                onClick={() => setMobileMenuOpen(false)}
-                                className="block py-3 px-4 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg hover:from-indigo-700 hover:to-purple-700 shadow-md transition-all duration-200 text-center"
+                                Login
+                            </LoginLink>
+                            <RegisterLink
+                                className="px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg hover:from-indigo-700 hover:to-purple-700 shadow-md hover:shadow-lg transition-all duration-200"
                             >
                                 Sign up
-                            </Link>
+                            </RegisterLink>
+
                         </div>
-                    </div>
+                    )}
+
                 </div>
-            )}
+                <div className="md:hidden">
+                    <MobileMenu user={user} />
+                </div>
+
+            </div>
+             
         </nav>
     )
 }  
