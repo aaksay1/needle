@@ -13,6 +13,7 @@ interface EditRequestFormProps {
         name: string;
         description: string;
         price: number; // price in cents
+        zipCode: string;
     };
     onCancel: () => void;
     onSuccess: () => void;
@@ -24,6 +25,7 @@ export function EditRequestForm({ product, onCancel, onSuccess }: EditRequestFor
         productName: product.name,
         description: product.description,
         price: (product.price / 100).toFixed(2), // Convert cents to dollars
+        zipCode: product.zipCode,
     });
     const [error, setError] = useState("");
 
@@ -33,7 +35,6 @@ export function EditRequestForm({ product, onCancel, onSuccess }: EditRequestFor
         setError("");
 
         try {
-            // Validate form
             if (!formData.productName.trim()) {
                 setError("Product name is required");
                 setIsSubmitting(false);
@@ -50,11 +51,17 @@ export function EditRequestForm({ product, onCancel, onSuccess }: EditRequestFor
                 setIsSubmitting(false);
                 return;
             }
+            if (!formData.zipCode.trim()) {
+                setError("ZIP code is required");
+                setIsSubmitting(false);
+                return;
+            }
 
             await updateProduct(product.id, {
                 name: formData.productName.trim(),
                 description: formData.description.trim(),
                 price: priceValue,
+                zipCode: formData.zipCode.trim(),
             });
 
             onSuccess();
@@ -88,6 +95,7 @@ export function EditRequestForm({ product, onCancel, onSuccess }: EditRequestFor
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                    {/* Product Name */}
                     <div>
                         <label htmlFor="productName" className="block text-sm font-medium text-gray-700 mb-2">
                             Product Name <span className="text-red-500">*</span>
@@ -105,6 +113,7 @@ export function EditRequestForm({ product, onCancel, onSuccess }: EditRequestFor
                         />
                     </div>
 
+                    {/* Description */}
                     <div>
                         <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
                             Product Description <span className="text-red-500">*</span>
@@ -122,6 +131,7 @@ export function EditRequestForm({ product, onCancel, onSuccess }: EditRequestFor
                         />
                     </div>
 
+                    {/* Price */}
                     <div>
                         <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-2">
                             Price You're Willing to Pay <span className="text-red-500">*</span>
@@ -142,6 +152,24 @@ export function EditRequestForm({ product, onCancel, onSuccess }: EditRequestFor
                                 disabled={isSubmitting}
                             />
                         </div>
+                    </div>
+
+                    {/* ZIP Code */}
+                    <div>
+                        <label htmlFor="zipCode" className="block text-sm font-medium text-gray-700 mb-2">
+                            ZIP Code <span className="text-red-500">*</span>
+                        </label>
+                        <Input
+                            id="zipCode"
+                            name="zipCode"
+                            type="text"
+                            placeholder="e.g., 08863"
+                            value={formData.zipCode}
+                            onChange={handleChange}
+                            required
+                            className="w-full"
+                            disabled={isSubmitting}
+                        />
                     </div>
 
                     {error && (
@@ -180,4 +208,3 @@ export function EditRequestForm({ product, onCancel, onSuccess }: EditRequestFor
         </div>
     );
 }
-

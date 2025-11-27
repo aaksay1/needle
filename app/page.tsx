@@ -1,3 +1,4 @@
+import { RegisterLink } from "@kinde-oss/kinde-auth-nextjs/components";
 import Link from "next/link";
 
 export default function Home() {
@@ -18,14 +19,13 @@ export default function Home() {
             Get exactly what you want at the price you want to pay.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link
-              href="/register"
+            <RegisterLink
               className="px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5"
             >
-              Get Started Free
-            </Link>
+              Get Started
+            </RegisterLink>
             <Link
-              href="/requests"
+              href="/browse-requests"
               className="px-8 py-4 text-lg font-semibold text-indigo-600 border-2 border-indigo-600 rounded-xl hover:bg-indigo-50 transition-all duration-200"
             >
               Browse Requests

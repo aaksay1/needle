@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 import prisma from "@/app/lib/prisma";
+import { isValidZip } from "@/app/lib/zipValidation";
 
 export async function POST(request: NextRequest) {
     try {
@@ -8,36 +9,21 @@ export async function POST(request: NextRequest) {
         const user = await getUser();
 
         if (!user) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
         const body = await request.json();
-        const { productName, description, price } = body;
+        const { productName, description, price, zipCode } = body;
 
         // Validate input
-        if (!productName || typeof productName !== "string" || productName.trim().length === 0) {
-            return NextResponse.json(
-                { error: "Product name is required" },
-                { status: 400 }
-            );
-        }
+        if (!productName?.trim()) return NextResponse.json({ error: "Product name is required" }, { status: 400 });
+        if (!description?.trim()) return NextResponse.json({ error: "Product description is required" }, { status: 400 });
+        if (!price || typeof price !== "number" || price <= 0) return NextResponse.json({ error: "Valid price is required" }, { status: 400 });
+        if (!zipCode?.trim()) return NextResponse.json({ error: "ZIP code is required" }, { status: 400 });
 
-        if (!description || typeof description !== "string" || description.trim().length === 0) {
-            return NextResponse.json(
-                { error: "Product description is required" },
-                { status: 400 }
-            );
-        }
-
-        if (!price || typeof price !== "number" || price <= 0) {
-            return NextResponse.json(
-                { error: "Valid price is required" },
-                { status: 400 }
-            );
-        }
+        // Validate ZIP code via Zippopotam.us
+        const zipValid = await isValidZip(zipCode.trim());
+        if (!zipValid) return NextResponse.json({ error: "Invalid ZIP code" }, { status: 400 });
 
         // Ensure user exists in database (upsert)
         await prisma.user.upsert({
@@ -52,48 +38,33 @@ export async function POST(request: NextRequest) {
             },
         });
 
-        // Convert price from dollars to cents (since schema expects Int)
         const priceInCents = Math.round(price * 100);
 
-        // Verify product model is available
-        if (!prisma.product) {
-            console.error("Prisma product model is not available. Please restart the dev server after running 'npx prisma generate'");
-            return NextResponse.json(
-                { error: "Database configuration error. Please restart the server." },
-                { status: 500 }
-            );
-        }
-
-        // Save product to database
+        // Save product
         const product = await prisma.product.create({
             data: {
                 name: productName.trim(),
-                price: priceInCents,
                 description: description.trim(),
+                price: priceInCents,
+                zipCode: zipCode.trim(),
                 userId: user.id,
             },
         });
 
-        return NextResponse.json(
-            {
-                success: true,
-                message: "Request posted successfully",
-                data: {
-                    id: product.id,
-                    name: product.name,
-                    price: product.price,
-                    createdAt: product.createdAt,
-                },
+        return NextResponse.json({
+            success: true,
+            message: "Request posted successfully",
+            data: {
+                id: product.id,
+                name: product.name,
+                price: product.price,
+                zipCode: product.zipCode,
+                createdAt: product.createdAt,
             },
-            { status: 201 }
-        );
+        }, { status: 201 });
+
     } catch (error) {
         console.error("Error posting request:", error);
-        return NextResponse.json(
-            { error: "Internal server error" },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }
-
-

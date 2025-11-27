@@ -13,6 +13,7 @@ interface ProductCardProps {
         name: string;
         description: string;
         price: number; // price in cents
+        zipCode: string;
         createdAt: Date;
     };
 }
@@ -47,17 +48,14 @@ export function ProductCard({ product }: ProductCardProps) {
         <>
             <div className="bg-white rounded-xl shadow-lg border border-indigo-100 p-6 hover:shadow-xl transition-all duration-200">
                 <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-xl font-bold text-gray-900 flex-1">
-                        {product.name}
-                    </h3>
+                    <h3 className="text-xl font-bold text-gray-900 flex-1">{product.name}</h3>
                     <span className="ml-2 px-3 py-1 bg-indigo-100 text-indigo-700 text-sm font-semibold rounded-full">
                         ${priceInDollars}
                     </span>
                 </div>
 
-                <p className="text-gray-600 mb-4 line-clamp-3">
-                    {String(descriptionText)}
-                </p>
+                <p className="text-gray-600 mb-2 line-clamp-3">{descriptionText}</p>
+                <p className="text-gray-500 text-sm mb-4">ZIP Code: {product.zipCode}</p>
 
                 <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                     <span className="text-sm text-gray-500">
@@ -82,7 +80,7 @@ export function ProductCard({ product }: ProductCardProps) {
                             size="sm"
                             onClick={() => setShowDeleteConfirm(true)}
                             disabled={isDeleting}
-                            className="text-red-600 hover:text-red-700"
+                            className="text-black-600 hover:text-red-700"
                         >
                             {isDeleting ? (
                                 <Loader2 className="w-4 h-4 mr-1 animate-spin" />
@@ -106,9 +104,7 @@ export function ProductCard({ product }: ProductCardProps) {
             {showDeleteConfirm && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">
-                            Delete Request?
-                        </h3>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Request?</h3>
                         <p className="text-gray-600 mb-6">
                             Are you sure you want to delete "{product.name}"? This action cannot be undone.
                         </p>
@@ -143,4 +139,3 @@ export function ProductCard({ product }: ProductCardProps) {
         </>
     );
 }
-

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
+import { isValidZip } from "../lib/zipValidation";
 
 export function PostRequestForm() {
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -12,6 +13,7 @@ export function PostRequestForm() {
         productName: "",
         description: "",
         price: "",
+        zipCode: "",
     });
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
@@ -23,7 +25,7 @@ export function PostRequestForm() {
         setSuccess(false);
 
         try {
-            // Validate form
+            // Validate basic fields
             if (!formData.productName.trim()) {
                 setError("Product name is required");
                 setIsSubmitting(false);
@@ -39,7 +41,21 @@ export function PostRequestForm() {
                 setIsSubmitting(false);
                 return;
             }
+            if (!formData.zipCode.trim()) {
+                setError("ZIP code is required");
+                setIsSubmitting(false);
+                return;
+            }
 
+            // Validate ZIP via Zippopotam.us
+            const zipValid = await isValidZip(formData.zipCode.trim());
+            if (!zipValid) {
+                setError("Invalid ZIP code");
+                setIsSubmitting(false);
+                return;
+            }
+
+            // Submit request to backend
             const response = await fetch("/api/post-request", {
                 method: "POST",
                 headers: {
@@ -49,6 +65,7 @@ export function PostRequestForm() {
                     productName: formData.productName.trim(),
                     description: formData.description.trim(),
                     price: parseFloat(formData.price),
+                    zipCode: formData.zipCode.trim(),
                 }),
             });
 
@@ -62,9 +79,9 @@ export function PostRequestForm() {
                 productName: "",
                 description: "",
                 price: "",
+                zipCode: "",
             });
 
-            // Reset success message after 3 seconds
             setTimeout(() => setSuccess(false), 3000);
         } catch (err) {
             setError(err instanceof Error ? err.message : "An error occurred");
@@ -83,6 +100,7 @@ export function PostRequestForm() {
 
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Product Name */}
             <div>
                 <label htmlFor="productName" className="block text-sm font-medium text-gray-700 mb-2">
                     Product Name <span className="text-red-500">*</span>
@@ -98,11 +116,9 @@ export function PostRequestForm() {
                     className="w-full"
                     disabled={isSubmitting}
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                    What is the product called?
-                </p>
             </div>
 
+            {/* Description */}
             <div>
                 <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
                     Product Description <span className="text-red-500">*</span>
@@ -110,7 +126,7 @@ export function PostRequestForm() {
                 <Textarea
                     id="description"
                     name="description"
-                    placeholder="Describe what you're looking for, including any specific features, condition, or requirements..."
+                    placeholder="Describe what you're looking for..."
                     value={formData.description}
                     onChange={handleChange}
                     required
@@ -118,11 +134,9 @@ export function PostRequestForm() {
                     className="w-full resize-none"
                     disabled={isSubmitting}
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                    What is the product? Provide details about what you need.
-                </p>
             </div>
 
+            {/* Price */}
             <div>
                 <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-2">
                     Price You're Willing to Pay <span className="text-red-500">*</span>
@@ -143,17 +157,34 @@ export function PostRequestForm() {
                         disabled={isSubmitting}
                     />
                 </div>
-                <p className="mt-1 text-xs text-gray-500">
-                    Enter the maximum amount you're willing to pay for this product.
-                </p>
             </div>
 
+            {/* ZIP Code */}
+            <div>
+                <label htmlFor="zipCode" className="block text-sm font-medium text-gray-700 mb-2">
+                    ZIP Code <span className="text-red-500">*</span>
+                </label>
+                <Input
+                    id="zipCode"
+                    name="zipCode"
+                    type="text"
+                    placeholder="e.g., 08863"
+                    value={formData.zipCode}
+                    onChange={handleChange}
+                    required
+                    className="w-full"
+                    disabled={isSubmitting}
+                />
+            </div>
+
+            {/* Error */}
             {error && (
                 <div className="p-3 rounded-md bg-red-50 border border-red-200">
                     <p className="text-sm text-red-600">{error}</p>
                 </div>
             )}
 
+            {/* Success */}
             {success && (
                 <div className="p-3 rounded-md bg-green-50 border border-green-200">
                     <p className="text-sm text-green-600">
@@ -179,5 +210,3 @@ export function PostRequestForm() {
         </form>
     );
 }
-
-

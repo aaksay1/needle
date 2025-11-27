@@ -8,5 +8,7 @@ export const productSchema = z.object({
       .int({ message: "Price must be an integer" })
       .nonnegative({ message: "Price cannot be negative" }),
     description: z.string().min(1, {message: 'Description is required'}),
+      zipCode: z.string().min(1, "ZIP code is required"), // add this
+
 });
 

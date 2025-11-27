@@ -28,6 +28,7 @@ model Product {
   name String
   price Int 
   description String
+  zipCode String
   createdAt DateTime @default(now())
   User User? @relation(fields: [userId], references: [id])
   userId String?
