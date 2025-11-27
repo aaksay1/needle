@@ -247,5 +247,3 @@ For issues and questions:
 - Icons from [Lucide](https://lucide.dev/)
 
 ---
-
-**Made with ❤️ for the reverse marketplace revolution**
