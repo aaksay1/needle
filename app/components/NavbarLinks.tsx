@@ -7,7 +7,7 @@ export const navbarLinks = [
     {
         id: 0,
         name: 'Browse Requests',
-        href: '/requests',
+        href: '/browse-requests',
         description: 'View buyer requests',
         protected: false
     },

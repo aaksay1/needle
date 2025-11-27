@@ -4,6 +4,7 @@ import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 import prisma from "@/app/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { productSchema } from "@/app/lib/schemas";
+import { getLatLonFromZip } from "@/app/lib/geo";
 
 export async function SellProduct(formData: FormData) {
     const { getUser } = getKindeServerSession();
@@ -42,53 +43,37 @@ export async function SellProduct(formData: FormData) {
 
 export async function updateProduct(
     productId: string,
-    data: { name: string; description: string; price: number; zipCode: string } // added zipCode
+    data: { name: string; description: string; price: number; zipCode: string }
 ) {
     const { getUser } = getKindeServerSession();
     const user = await getUser();
 
-    if (!user) {
-        throw new Error("Unauthorized");
-    }
+    if (!user) throw new Error("Unauthorized");
 
-    // Validate input
-    if (!data.name || data.name.trim().length < 3) {
-        throw new Error("The name has to be a minimum character length of 3");
-    }
-    if (!data.description || data.description.trim().length === 0) {
-        throw new Error("Description is required");
-    }
-    if (!data.price || data.price <= 0 || isNaN(data.price)) {
-        throw new Error("Price must be a positive number");
-    }
-    if (!data.zipCode || data.zipCode.trim().length === 0) {
+    if (!data.zipCode || !data.zipCode.trim()) {
         throw new Error("ZIP code is required");
     }
 
-    // Verify product belongs to the user
-    const product = await prisma.product.findUnique({
-        where: { id: productId },
-    });
+    // Lookup new geo coordinates
+    const geo = await getLatLonFromZip(data.zipCode.trim());
+    if (!geo) throw new Error("Invalid ZIP code");
 
-    if (!product) {
-        throw new Error("Product not found");
-    }
+    // Verify product belongs to user
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw new Error("Product not found");
+    if (product.userId !== user.id) throw new Error("Unauthorized");
 
-    if (product.userId !== user.id) {
-        throw new Error("Unauthorized: You can only edit your own requests");
-    }
-
-    // Convert price to cents
     const priceInCents = Math.round(data.price * 100);
 
-    // Update the product
     await prisma.product.update({
         where: { id: productId },
         data: {
             name: data.name.trim(),
             description: data.description.trim(),
             price: priceInCents,
-            zipCode: data.zipCode.trim(), // added
+            zipCode: data.zipCode.trim(),
+            latitude: geo.latitude,
+            longitude: geo.longitude,
         },
     });
 

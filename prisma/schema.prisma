@@ -13,6 +13,18 @@ datasource db {
   provider  = "postgresql"
 }
 
+model Offer {
+  id String @id @default(uuid())
+  productId String
+  product Product @relation(fields: [productId], references: [id])
+  senderId String
+  sender User @relation(fields: [senderId], references: [id])
+  amount Int // in cents
+  message String? // optional
+  status String @default("pending") // pending, accepted, rejected
+  createdAt DateTime @default(now())
+}
+
 model User {
   id String @id @unique
   email String
@@ -21,6 +33,7 @@ model User {
   profileImage String
 
   Product Product[]
+  offers   Offer[]
 }
 
 model Product {
@@ -29,7 +42,12 @@ model Product {
   price Int 
   description String
   zipCode String
+  latitude    Float?
+  longitude   Float?
   createdAt DateTime @default(now())
+
   User User? @relation(fields: [userId], references: [id])
   userId String?
+
+  offers Offer[] 
 }

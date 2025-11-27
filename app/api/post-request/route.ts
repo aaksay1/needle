@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 import prisma from "@/app/lib/prisma";
 import { isValidZip } from "@/app/lib/zipValidation";
+import { getLatLonFromZip } from "@/app/lib/geo";
 
 export async function POST(request: NextRequest) {
     try {
@@ -25,6 +26,11 @@ export async function POST(request: NextRequest) {
         const zipValid = await isValidZip(zipCode.trim());
         if (!zipValid) return NextResponse.json({ error: "Invalid ZIP code" }, { status: 400 });
 
+        const geo = await getLatLonFromZip(zipCode.trim());
+        if(!geo) {
+            return NextResponse.json({ error: "Invalid ZIP code" }, { status:400 });
+        }
+
         // Ensure user exists in database (upsert)
         await prisma.user.upsert({
             where: { id: user.id },
@@ -47,6 +53,8 @@ export async function POST(request: NextRequest) {
                 description: description.trim(),
                 price: priceInCents,
                 zipCode: zipCode.trim(),
+                latitude: geo.latitude,
+                longitude: geo.longitude,
                 userId: user.id,
             },
         });
