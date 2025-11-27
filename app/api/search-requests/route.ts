@@ -30,20 +30,46 @@ export async function GET(req: Request) {
   if (!lat || !lon)
     return NextResponse.json({ error: "Missing lat/lon" }, { status: 400 });
 
-  // Fetch all products
-  const allProducts = await prisma.product.findMany();
+  // Fetch all products with user information
+  const allProducts = await prisma.product.findMany({
+    include: {
+      User: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+    },
+  });
 
   // Filter by search term + distance
-  const results = allProducts.filter((p) => {
-    if (!p.latitude || !p.longitude) return false;
+  const results = allProducts
+    .filter((p) => {
+      if (!p.latitude || !p.longitude) return false;
 
-    const distance = haversine(lat, lon, p.latitude, p.longitude);
+      const distance = haversine(lat, lon, p.latitude, p.longitude);
 
-    const matchesSearch =
-      query.length === 0 || p.name.toLowerCase().includes(query);
+      const matchesSearch =
+        query.length === 0 || p.name.toLowerCase().includes(query);
 
-    return matchesSearch && distance <= radius;
-  });
+      return matchesSearch && distance <= radius;
+    })
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      price: p.price,
+      zipCode: p.zipCode,
+      createdAt: p.createdAt,
+      userId: p.userId,
+      user: p.User
+        ? {
+            firstName: p.User.firstName,
+            lastName: p.User.lastName,
+          }
+        : null,
+    }));
 
   return NextResponse.json(results);
 }
