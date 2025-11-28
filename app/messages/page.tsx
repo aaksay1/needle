@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,9 +52,18 @@ export default function MessagesPage() {
     const [socket, setSocket] = useState<Socket | null>(null);
     const [userId, setUserId] = useState<string | null>(null);
     const router = useRouter();
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const selectedConversationRef = useRef<string | null>(null);
+    
+    // Keep ref in sync with state
+    useEffect(() => {
+        selectedConversationRef.current = selectedConversation;
+    }, [selectedConversation]);
 
     // Initialize socket connection
     useEffect(() => {
+        let newSocket: Socket | null = null;
+        
         // Get user ID from session
         fetch("/api/auth/session")
             .then((res) => res.json())
@@ -64,27 +73,118 @@ export default function MessagesPage() {
                     const socketUrl = typeof window !== "undefined" 
                         ? window.location.origin 
                         : "http://localhost:3000";
-                    const newSocket = io(socketUrl, {
-                        transports: ["websocket"],
+                    
+                    console.log("Connecting to socket at:", socketUrl);
+                    
+                    // Use websocket only to avoid polling/XHR issues
+                    newSocket = io(socketUrl, {
+                        transports: ["websocket"], // Use websocket only
+                        reconnection: true,
+                        reconnectionDelay: 2000,
+                        reconnectionAttempts: 5,
+                        timeout: 5000, // 5 second timeout (shorter to fail faster and retry)
+                        forceNew: false,
+                        autoConnect: true,
                     });
+                    
 
                     newSocket.on("connect", () => {
-                        newSocket.emit("join", data.user.id);
+                        console.log("Socket connected:", newSocket?.id);
+                        if (data.user?.id) {
+                            newSocket?.emit("join", data.user.id);
+                        }
+                        // If there's already a selected conversation, join it now that we're connected
+                        if (selectedConversationRef.current) {
+                            console.log("Socket connected, joining existing conversation:", selectedConversationRef.current);
+                            newSocket.emit("join-conversation", selectedConversationRef.current);
+                        }
                     });
 
-                    newSocket.on("new-message", (messageData: any) => {
-                        // Reload messages if this conversation is currently open
-                        if (messageData.conversationId === selectedConversation) {
-                            fetch(`/api/messages/${selectedConversation}`)
-                                .then((res) => res.json())
-                                .then((msgs) => {
-                                    setMessages(msgs);
-                                })
-                                .catch(console.error);
+                    newSocket.on("disconnect", (reason) => {
+                        console.log("Socket disconnected:", reason);
+                    });
+
+                    newSocket.on("connect_error", (error) => {
+                        // Suppress timeout errors - they're expected during initial connection/reconnection
+                        if (error.message && error.message.includes("timeout")) {
+                            // Timeout is expected, Socket.IO will retry automatically
+                            return;
                         }
+                        console.error("Socket connection error:", error);
+                    });
+
+                    newSocket.on("reconnect", (attemptNumber) => {
+                        console.log("Socket reconnected after", attemptNumber, "attempts");
+                        if (data.user?.id) {
+                            newSocket?.emit("join", data.user.id);
+                        }
+                        // Rejoin conversation room if one was selected
+                        if (selectedConversationRef.current) {
+                            console.log("Rejoining conversation after reconnect:", selectedConversationRef.current);
+                            newSocket.emit("join-conversation", selectedConversationRef.current);
+                        }
+                    });
+
+                    newSocket.on("reconnect_error", (error) => {
+                        // Suppress timeout errors during reconnection
+                        if (error.message && error.message.includes("timeout")) {
+                            return;
+                        }
+                        console.error("Socket reconnection error:", error);
+                    });
+
+                    newSocket.on("reconnect_failed", () => {
+                        console.warn("Socket reconnection failed - will continue trying");
+                    });
+
+                    // Set up message listener - use ref to always get current selectedConversation
+                    const handleNewMessage = (messageData: any) => {
+                        console.log("Received new message:", messageData);
+                        console.log("Current selected conversation (ref):", selectedConversationRef.current);
+                        
                         // Always update conversation list to show new last message
                         loadConversations();
-                    });
+                        
+                        // Check if this message is for the currently selected conversation using ref
+                        const currentConv = selectedConversationRef.current;
+                        
+                        if (messageData.conversationId === currentConv) {
+                            console.log("Message is for current conversation, adding it");
+                            // Use setMessages with a function to access current state
+                            setMessages((prev) => {
+                                // Check if message already exists (avoid duplicates)
+                                const exists = prev.some((msg) => msg.id === messageData.id);
+                                if (exists) {
+                                    console.log("Message already exists, skipping");
+                                    return prev;
+                                }
+                                
+                                console.log("Adding new message to current conversation");
+                                // Add the new message to the list and ensure no duplicates
+                                const newMessages = [...prev, {
+                                    id: messageData.id,
+                                    content: messageData.content,
+                                    senderId: messageData.senderId,
+                                    createdAt: messageData.createdAt,
+                                    sender: messageData.sender || {
+                                        id: messageData.senderId,
+                                        firstName: "Unknown",
+                                        lastName: "User",
+                                        profileImage: "",
+                                    },
+                                }];
+                                
+                                // Remove any duplicates by ID (safety check)
+                                return Array.from(
+                                    new Map(newMessages.map((msg) => [msg.id, msg])).values()
+                                );
+                            });
+                        } else {
+                            console.log("Message is for different conversation, ignoring");
+                        }
+                    };
+                    
+                    newSocket.on("new-message", handleNewMessage);
 
                     setSocket(newSocket);
                 }
@@ -94,8 +194,9 @@ export default function MessagesPage() {
             });
 
         return () => {
-            if (socket) {
-                socket.disconnect();
+            if (newSocket) {
+                console.log("Cleaning up socket connection");
+                newSocket.disconnect();
             }
         };
     }, []);
@@ -121,31 +222,80 @@ export default function MessagesPage() {
     useEffect(() => {
         loadConversations();
         
-        // Set up interval to refresh conversations periodically (every 5 seconds)
+        // Set up interval to refresh conversations periodically (every 10 seconds as fallback)
+        // Real-time updates via WebSocket handle most updates, but polling ensures messages appear
         const interval = setInterval(() => {
             loadConversations();
-        }, 5000);
+            // Also refresh messages if a conversation is selected
+            if (selectedConversation) {
+                fetch(`/api/messages/${selectedConversation}`)
+                    .then((res) => res.json())
+                    .then((data) => {
+                        // Remove duplicates by using a Map with message ID as key
+                        const uniqueMessages = Array.from(
+                            new Map((data || []).map((msg: Message) => [msg.id, msg])).values()
+                        );
+                        setMessages(uniqueMessages);
+                    })
+                    .catch((error) => {
+                        console.error("Failed to refresh messages:", error);
+                    });
+            }
+        }, 10000); // Poll every 10 seconds as fallback
         
         return () => clearInterval(interval);
-    }, []);
+    }, [selectedConversation]);
+
+    // Auto-scroll to bottom when messages change
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages]);
 
     // Load messages when conversation is selected
     useEffect(() => {
-        if (selectedConversation && socket) {
-            socket.emit("join-conversation", selectedConversation);
-            
+        if (selectedConversation) {
+            // Load messages first
             fetch(`/api/messages/${selectedConversation}`)
                 .then((res) => res.json())
                 .then((data) => {
-                    setMessages(data);
+                    // Remove duplicates by using a Map with message ID as key
+                    const uniqueMessages = Array.from(
+                        new Map((data || []).map((msg: Message) => [msg.id, msg])).values()
+                    );
+                    setMessages(uniqueMessages);
                 })
                 .catch((error) => {
                     console.error("Failed to load messages:", error);
                 });
+            
+            // Join conversation room - ensure we join even if socket connects later
+            const joinRoom = () => {
+                if (socket && socket.connected) {
+                    console.log("Joining conversation room:", selectedConversation);
+                    socket.emit("join-conversation", selectedConversation);
+                }
+            };
+            
+            // Try to join immediately if socket is connected
+            joinRoom();
+            
+            // Also set up listener for when socket connects (if not connected yet)
+            if (socket && !socket.connected) {
+                socket.once("connect", () => {
+                    console.log("Socket connected, joining conversation:", selectedConversation);
+                    joinRoom();
+                });
+            }
 
             return () => {
-                socket.emit("leave-conversation", selectedConversation);
+                if (socket && socket.connected) {
+                    console.log("Leaving conversation:", selectedConversation);
+                    socket.emit("leave-conversation", selectedConversation);
+                }
             };
+        } else {
+            // Clear messages when no conversation is selected
+            setMessages([]);
         }
     }, [selectedConversation, socket]);
 
@@ -164,16 +314,41 @@ export default function MessagesPage() {
 
             if (res.ok) {
                 const newMessage = await res.json();
-                setMessages((prev) => [...prev, newMessage]);
+                // Add message to local state immediately (optimistic update)
+                // Use functional update to ensure we don't add duplicates
+                setMessages((prev) => {
+                    // Check if message already exists (prevent duplicates)
+                    const exists = prev.some((msg) => msg.id === newMessage.id);
+                    if (exists) {
+                        console.log("Message already in state, skipping duplicate");
+                        return prev;
+                    }
+                    // Add new message and remove any duplicates by ID
+                    const newMessages = [...prev, newMessage];
+                    return Array.from(
+                        new Map(newMessages.map((msg) => [msg.id, msg])).values()
+                    );
+                });
                 setMessageContent("");
                 
-                // Emit to socket
-                if (socket) {
-                    socket.emit("send-message", {
-                        conversationId: selectedConversation,
-                        senderId: userId,
-                        content: newMessage.content,
-                    });
+                // Emit to socket from client side to ensure real-time delivery
+                // This works as a fallback if server-side emission fails
+                if (socket && selectedConversation) {
+                    if (socket.connected) {
+                        console.log("Emitting message via socket from client");
+                        socket.emit("send-message", {
+                            conversationId: selectedConversation,
+                            senderId: userId,
+                            content: newMessage.content,
+                            messageId: newMessage.id,
+                            createdAt: newMessage.createdAt,
+                            sender: newMessage.sender,
+                        });
+                    } else {
+                        console.warn("Socket not connected, message saved but not broadcasted. Will appear on refresh.");
+                        // Message is still saved, it will appear when the other user refreshes
+                        // Or when they receive it via the periodic refresh
+                    }
                 }
 
                 // Reload conversations to update last message
@@ -309,6 +484,7 @@ export default function MessagesPage() {
                                             </div>
                                         );
                                     })}
+                                    <div ref={messagesEndRef} />
                                 </div>
 
                                 {/* Message Input */}

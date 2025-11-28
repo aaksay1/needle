@@ -105,6 +105,41 @@ export async function POST(
         data: { updatedAt: new Date() },
     });
 
+    // Emit real-time message via Socket.IO
+    try {
+        // Access the Socket.IO instance from the global scope (set by server.js)
+        // Try both global and process in case one doesn't work
+        const io = (global as any).io || (process as any).io;
+        if (io) {
+            console.log(`Emitting message to conversation:${conversationId}`);
+            const messageData = {
+                id: message.id,
+                conversationId: message.conversationId,
+                senderId: message.senderId,
+                content: message.content,
+                createdAt: message.createdAt.toISOString(),
+                sender: message.sender,
+            };
+            
+            // Emit to the conversation room
+            io.to(`conversation:${conversationId}`).emit('new-message', messageData);
+            console.log('Message emitted successfully to room conversation:' + conversationId, messageData);
+            
+            // Also log how many sockets are in the room (for debugging)
+            const room = io.sockets.adapter.rooms.get(`conversation:${conversationId}`);
+            if (room) {
+                console.log(`Room has ${room.size} socket(s)`);
+            } else {
+                console.warn(`Room conversation:${conversationId} does not exist`);
+            }
+        } else {
+            console.warn('Socket.IO instance not available in API route');
+        }
+    } catch (error) {
+        console.error('Failed to emit socket message:', error);
+        // Don't fail the request if socket emission fails
+    }
+
     return NextResponse.json(message);
 }
 

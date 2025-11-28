@@ -13,6 +13,17 @@ const handle = app.getRequestHandler();
 app.prepare().then(() => {
   const httpServer = createServer(async (req, res) => {
     try {
+      // Handle CORS preflight
+      if (req.method === 'OPTIONS') {
+        res.writeHead(200, {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': '*',
+        });
+        res.end();
+        return;
+      }
+      
       const parsedUrl = parse(req.url, true);
       await handle(req, res, parsedUrl);
     } catch (err) {
@@ -25,9 +36,23 @@ app.prepare().then(() => {
   const io = new Server(httpServer, {
     cors: {
       origin: "*",
-      methods: ["GET", "POST"]
-    }
+      methods: ["GET", "POST", "OPTIONS"],
+      credentials: true,
+      allowedHeaders: ["*"]
+    },
+    transports: ['websocket'], // Use websocket only to avoid XHR polling errors
+    allowEIO3: true,
+    pingTimeout: 20000,
+    pingInterval: 10000,
+    connectTimeout: 10000, // 10 second connection timeout
+    maxHttpBufferSize: 1e6
   });
+
+  // Make io instance available to API routes via global and process
+  global.io = io;
+  if (typeof process !== 'undefined') {
+    process.io = io;
+  }
 
   // Store user socket connections
   const userSockets = new Map();
@@ -45,21 +70,29 @@ app.prepare().then(() => {
 
     // Handle sending messages (this is just for real-time updates, actual persistence happens in API route)
     socket.on('send-message', async (data) => {
-      const { conversationId, senderId, content } = data;
+      const { conversationId, senderId, content, messageId, createdAt, sender } = data;
       
-      // Broadcast to all users in the conversation
-      io.to(`conversation:${conversationId}`).emit('new-message', {
+      console.log('Received send-message event:', data);
+      
+      // Broadcast to all users in the conversation (including sender for confirmation)
+      const messageData = {
+        id: messageId || `temp-${Date.now()}`,
         conversationId,
         senderId,
         content,
-        createdAt: new Date().toISOString(),
-      });
+        createdAt: createdAt || new Date().toISOString(),
+        sender: sender || null,
+      };
+      
+      io.to(`conversation:${conversationId}`).emit('new-message', messageData);
+      console.log(`Broadcasted message to conversation:${conversationId}`, messageData);
     });
 
     // Join conversation room
     socket.on('join-conversation', (conversationId) => {
       socket.join(`conversation:${conversationId}`);
-      console.log(`Socket ${socket.id} joined conversation ${conversationId}`);
+      const room = io.sockets.adapter.rooms.get(`conversation:${conversationId}`);
+      console.log(`Socket ${socket.id} joined conversation ${conversationId}. Room now has ${room ? room.size : 0} socket(s)`);
     });
 
     // Leave conversation room
