@@ -2,6 +2,8 @@
 
 A modern reverse marketplace platform where buyers post product requests and sellers compete to fulfill them. Built with Next.js, featuring real-time messaging, location-based search, and a seamless user experience.
 
+Demo Link: https://www.youtube.com/watch?v=JDaL1StxyTg
+
 ## 🎯 Overview
 
 Needle flips the traditional marketplace model. Instead of sellers listing products, buyers post what they need, and sellers make offers. This creates a competitive environment where buyers get exactly what they want at the price they're willing to pay.
